@@ -19,6 +19,7 @@ Create a file named `.env` inside the **backend** folder.
 Paste your connection string inside:
 
 It should look like this.
+
 MONGO_URI="link i sent"
 
 ### 3. Start the Project
