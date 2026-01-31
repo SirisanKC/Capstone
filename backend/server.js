@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // MUST be at the very top to read the .env file
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -6,16 +6,25 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
 const app = express();
+
+// --- MIDDLEWARE ---
 app.use(express.json());
-app.use(cors()); // Allows Frontend (3000) to talk to Backend (5000)
-// 1. DATABASE CONNECTION
+app.use(cors()); // Allows your React frontend to communicate with this server
 
-const cloudDB = "mongodb+srv://nyansintwai310_db_user:Qvj7LZ3Sicbxe32n@cluster0.64ocjvi.mongodb.net/?appName=Cluster0";
+// --- DATABASE CONNECTION ---
+// We use process.env.MONGO_URI so your password is hidden from GitHub
+const mongoURI = process.env.MONGO_URI;
 
-mongoose.connect(cloudDB)
-  .then(() => console.log("☁️ Connected to MongoDB ATLAS Cloud"))
-  .catch(err => console.error("Cloud Connection Error:", err));
-// 2. USER SCHEMA (The blueprint for your users)
+if (!mongoURI) {
+  console.error("❌ ERROR: MONGO_URI is not defined in the .env file!");
+  process.exit(1);
+}
+
+mongoose.connect(mongoURI)
+  .then(() => console.log("✅ Connected to MongoDB Atlas Cloud"))
+  .catch(err => console.error("❌ MongoDB Connection Error:", err));
+
+// --- USER SCHEMA ---
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -23,7 +32,9 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
-// 3. REGISTRATION ROUTE
+// --- ROUTES ---
+
+// 1. Registration Route
 app.post('/register', async (req, res) => {
   try {
     const { email, password, role } = req.body;
@@ -32,20 +43,20 @@ app.post('/register', async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).send("User already exists");
 
-    // Hash Password
+    // Securely hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const newUser = new User({ email, password: hashedPassword, role });
     await newUser.save();
     
-    console.log(`New user created: ${email} as ${role}`);
+    console.log(`New user registered: ${email} (${role})`);
     res.status(201).send("Account created successfully!");
   } catch (error) {
     res.status(500).send("Server Error: " + error.message);
   }
 });
 
-// 4. LOGIN ROUTE
+// 2. Login Route
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -56,10 +67,10 @@ app.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).send("Invalid credentials");
 
-    // Create Token (Wristband)
+    // Generate a secure JWT token
     const token = jwt.sign(
         { id: user._id, role: user.role }, 
-        'YOUR_SECRET_KEY', 
+        process.env.JWT_SECRET || 'fallback_secret', 
         { expiresIn: '1h' }
     );
 
@@ -69,4 +80,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log("🚀 Server running on http://localhost:5000"));
+// --- START SERVER ---
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
